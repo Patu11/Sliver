@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import QApplication, QDialog, QMenu, QSystemTrayIcon, QWidg
 
 from .capture import SelectionOverlay
 from .config import ConfigStore, get_config_path
-from .models import AppConfig, Region
+from .models import AppConfig, MATCH_APP, MATCH_TITLE, Region
 from .overlay_window import DwmOverlayWidget
 from .resources import app_icon
 from .settings import SettingsStore, get_settings_path, resolve_config_path
@@ -23,7 +23,9 @@ from .windows import (
     find_source_window,
     list_monitors,
     list_source_windows,
+    match_source,
     monitor_index_for,
+    snapshot_windows,
     window_source,
 )
 
@@ -291,7 +293,9 @@ class OverlayApplication(QObject):
         width, height = right - left, bottom - top
         region = self.find_region(region_id)
         if region is not None:
-            region.source = window_source(source_hwnd)
+            region.source = replace(
+                window_source(source_hwnd), match_mode=region.source.match_mode
+            )
             region.x, region.y, region.width, region.height = left, top, width, height
             region.overlay_width = max(1, round(width * region.scale / 100))
             region.overlay_height = max(1, round(height * region.scale / 100))
@@ -307,7 +311,7 @@ class OverlayApplication(QObject):
         offset = len(self.config.regions) * 30
         region = Region(
             id=str(uuid.uuid4()),
-            source=window_source(source_hwnd),
+            source=replace(window_source(source_hwnd), match_mode=MATCH_APP),
             x=left,
             y=top,
             width=width,
@@ -463,6 +467,43 @@ class OverlayApplication(QObject):
         self.save()
         self.control.refresh_region(region_id)
 
+    def set_region_match_mode(self, region_id: str, mode: str) -> None:
+        region = self.find_region(region_id)
+        if region is None or mode not in (MATCH_TITLE, MATCH_APP):
+            return
+        if region.source.match_mode != mode:
+            region.source.match_mode = mode
+            self.save()
+            self.reconcile_overlays()
+        self.control.refresh_region(region_id)
+
+    def rebind_region(self, region_id: str, anchor: QWidget | None = None) -> None:
+        """Attach a region to another window, keeping its area, size and mode."""
+
+        region = self.find_region(region_id)
+        if region is None:
+            return
+        dialog = SourcePickerDialog(
+            self.control,
+            list_source_windows,
+            region.source,
+            title="Choose a window to connect this region to",
+            action_text="Connect",
+        )
+        dialog.place_near(anchor if anchor and anchor.isVisible() else None)
+        if dialog.exec() != QDialog.DialogCode.Accepted or dialog.selected is None:
+            return
+        region.source = replace(
+            dialog.selected.reference, match_mode=region.source.match_mode
+        )
+        overlay = self.overlays.pop(region.id, None)
+        if overlay:
+            overlay.close_thumbnail()
+        self.save()
+        self.reconcile_overlays()
+        self.control.refresh_region(region_id)
+        self.control.set_status(f'Connected to "{region.source.title}".')
+
     def recapture_region(self, region_id: str) -> None:
         region = self.find_region(region_id)
         if region is None:
@@ -565,9 +606,18 @@ class OverlayApplication(QObject):
     def reconcile_overlays(self) -> None:
         if self._shutting_down:
             return
+        snapshot = snapshot_windows()
         self.source_hwnds = {
-            region.id: find_source_window(region.source) for region in self.config.regions
+            region.id: match_source(region.source, snapshot)
+            for region in self.config.regions
         }
+        # Regions saved by older versions learn their program name once found.
+        for region in self.config.regions:
+            window = snapshot.window(self.source_hwnds[region.id])
+            if window and not region.source.exe_name:
+                region.source.exe_name = snapshot.exe_name(window.process_id)
+                if region.source.exe_name:
+                    self.save_soon()
         for region_id, overlay in list(self.overlays.items()):
             region = self.find_region(region_id)
             source_hwnd = self.source_hwnds.get(region_id)

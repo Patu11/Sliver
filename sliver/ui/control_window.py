@@ -43,8 +43,8 @@ class ControlWindow(QMainWindow):
         self._close_hint_shown = False
         self.setWindowTitle("Sliver")
         self.setWindowIcon(app_icon())
-        self.setMinimumSize(760, 620)
-        self.resize(960, 740)
+        self.setMinimumSize(760, 660)
+        self.resize(960, 780)
         apply_window_theme(int(self.winId()), THEME["sidebar"])
 
         root = QWidget()

@@ -43,7 +43,11 @@ Select a region in the sidebar to edit it on the right:
 
 - **Name** — click the title (or press <kbd>F2</kbd>) to rename it.
 - **Live preview** — shows exactly what the overlay displays.
-- **Source** — the source window title, a **Running / Not running** badge, and **Reselect area** to drag a new rectangle over the same window.
+- **Source** — the program and title of the source window, a **Running / Not running** badge, and **Reselect area** to drag a new rectangle over the same window.
+- **Follow** (the dropdown under Source) — how the region finds its window again:
+  - *Follow this exact window title* — the region waits for a window with the same title. Use it to keep a region tied to one specific window, for example one of several game clients.
+  - *Follow any window of this app* — a window with the saved title is still preferred, but when it is gone another window of the same program is shown instead. This is the default for new regions and keeps them working when the title changes.
+- **Connect to window…** — attaches the region to another window while keeping its area, size and position.
 - **Opacity** — 10–100 %.
 - **Size** — 25–400 % of the source area, with 50 / 100 / 200 % shortcuts.
 - **Area** — exact X, Y, Width and Height of the source crop, in pixels of the source window's client area.
@@ -103,7 +107,8 @@ The application used to be called Region Overlay and kept its data in `%APPDATA%
 
 ## Limitations
 
-- A region finds its source window by exact window title and window class. If the title changes (a different browser tab, a document name in the title), the region shows **Not running** and its overlay is hidden until the title matches again.
+- In *Follow this exact window title* mode a region shows **Not running** whenever the window title changes (a different browser tab, another character or document in the title) until the title matches again. Regions created before this option existed use that mode until you switch them.
+- In *Follow any window of this app* mode, with several windows of the same program open and the saved title gone, the region picks the topmost one, which may not be the one you want. Use **Connect to window…** to choose.
 - An overlay is hidden while its source window is minimized.
 - Source areas use fixed client-area pixels and do not scale when the source window is resized.
 - Overlays rely on the Windows DWM and pywin32 APIs, so the application is Windows-only.

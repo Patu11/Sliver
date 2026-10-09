@@ -7,7 +7,14 @@ import os
 import shutil
 from dataclasses import asdict
 
-from .models import AppConfig, CONFIG_VERSION, Region, SourceReference
+from .models import (
+    AppConfig,
+    CONFIG_VERSION,
+    MATCH_APP,
+    MATCH_TITLE,
+    Region,
+    SourceReference,
+)
 
 
 DATA_FOLDER = "Sliver"
@@ -53,6 +60,8 @@ def source_from_dict(data: dict) -> SourceReference:
         title=str(data["title"]),
         class_name=str(data["class_name"]),
         process_id=int(data.get("process_id", 0)),
+        exe_name=str(data.get("exe_name") or "").lower(),
+        match_mode=MATCH_APP if data.get("match_mode") == MATCH_APP else MATCH_TITLE,
     )
 
 

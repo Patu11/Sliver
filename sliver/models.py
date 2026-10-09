@@ -8,11 +8,31 @@ from dataclasses import dataclass, field
 CONFIG_VERSION = 1
 
 
+# How a region finds its source window again.
+MATCH_TITLE = "title"  # the exact window title
+MATCH_APP = "app"  # any window of the same program, preferring the saved title
+
+
 @dataclass
 class SourceReference:
     title: str
     class_name: str
     process_id: int
+    # Lower-case file name of the owning program, e.g. "client.exe".
+    exe_name: str = ""
+    match_mode: str = MATCH_TITLE
+
+
+@dataclass
+class WindowInfo:
+    """One top-level window as seen in a single enumeration."""
+
+    hwnd: int
+    title: str
+    class_name: str
+    process_id: int
+    # A titled, unowned, regular window: a plausible main window of its program.
+    is_main: bool = True
 
 
 @dataclass

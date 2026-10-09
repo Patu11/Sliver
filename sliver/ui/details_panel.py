@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import win32gui
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QAbstractSpinBox,
@@ -19,7 +20,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from ..models import Region
+from ..models import MATCH_APP, MATCH_TITLE, Region
 from ..windows import list_monitors, monitor_index_for
 from .live_preview import LivePreview
 from .widgets import ClickableLabel, ElidedLabel, ToggleSwitch
@@ -53,7 +54,9 @@ class RegionDetailsPanel(QWidget):
         grid.setVerticalSpacing(12)
         grid.setColumnStretch(1, 1)
 
-        grid.addWidget(self._field_label("Source"), 0, 0)
+        source_label = self._field_label("Source")
+        source_label.setContentsMargins(0, 7, 0, 0)
+        grid.addWidget(source_label, 0, 0, Qt.AlignmentFlag.AlignTop)
         source_row = QHBoxLayout()
         source_row.setSpacing(8)
         self.source_label = ElidedLabel()
@@ -67,7 +70,32 @@ class RegionDetailsPanel(QWidget):
             lambda: self.region_id and self.controller.recapture_region(self.region_id)
         )
         source_row.addWidget(self.recapture_button)
-        grid.addLayout(source_row, 0, 1)
+        match_row = QHBoxLayout()
+        match_row.setSpacing(8)
+        self.match_combo = QComboBox()
+        self.match_combo.addItem("Follow this exact window title", MATCH_TITLE)
+        self.match_combo.addItem("Follow any window of this app", MATCH_APP)
+        self.match_combo.setToolTip(
+            "Exact title: the region waits for a window with the same title.\n"
+            "Any window of this app: if that title is gone, another window of the "
+            "same program is shown instead."
+        )
+        self.match_combo.activated.connect(self._match_mode_chosen)
+        match_row.addWidget(self.match_combo, 1)
+        self.connect_button = QPushButton("Connect to window…")
+        self.connect_button.setToolTip(
+            "Attach this region to another window, keeping its area and size"
+        )
+        self.connect_button.clicked.connect(
+            lambda: self.region_id
+            and self.controller.rebind_region(self.region_id, self.connect_button)
+        )
+        match_row.addWidget(self.connect_button)
+        source_cell = QVBoxLayout()
+        source_cell.setSpacing(8)
+        source_cell.addLayout(source_row)
+        source_cell.addLayout(match_row)
+        grid.addLayout(source_cell, 0, 1)
 
         grid.addWidget(self._field_label("Opacity"), 1, 0)
         opacity_row = QHBoxLayout()
@@ -205,11 +233,19 @@ class RegionDetailsPanel(QWidget):
             widget.blockSignals(False)
         self.opacity_value.setText(f"{region.opacity}%")
         self.refresh_geometry(region, force=True)
-        self.source_label.set_full_text(region.source.title or region.source.class_name)
+        self.match_combo.setCurrentIndex(
+            max(0, self.match_combo.findData(region.source.match_mode))
+        )
         self.refresh_status(region, source_hwnd)
 
     def refresh_status(self, region: Region, source_hwnd: int | None) -> None:
         available = source_hwnd is not None
+        title = win32gui.GetWindowText(source_hwnd) if available else ""
+        title = title or region.source.title or region.source.class_name
+        program = region.source.exe_name
+        self.source_label.set_full_text(f"{program} — {title}" if program else title)
+        # Following the app needs the program name, known once the window was seen.
+        self.match_combo.model().item(1).setEnabled(bool(program))
         self.status_pill.setText("Running" if available else "Not running")
         self.status_pill.setProperty("state", "ok" if available else "off")
         self.status_pill.style().unpolish(self.status_pill)
@@ -270,6 +306,12 @@ class RegionDetailsPanel(QWidget):
         self.scale_value.setText(f"{value}%")
         if self.region_id:
             self.controller.set_region_scale(self.region_id, value)
+
+    def _match_mode_chosen(self, index: int) -> None:
+        if self.region_id:
+            self.controller.set_region_match_mode(
+                self.region_id, self.match_combo.itemData(index)
+            )
 
     def _crop_changed(self, *_: object) -> None:
         if self.region_id:

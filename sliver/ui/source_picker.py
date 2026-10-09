@@ -63,6 +63,8 @@ class SourcePickerDialog(QDialog):
         parent: QWidget,
         load_sources: Callable[[], list[SourceWindow]],
         recent: SourceReference | None,
+        title: str = "Choose a window to capture from",
+        action_text: str = "Select area",
     ) -> None:
         super().__init__(parent, Qt.WindowType.Popup)
         self.setObjectName("sourcePicker")
@@ -76,9 +78,9 @@ class SourcePickerDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 14, 16, 14)
         layout.setSpacing(10)
-        title = QLabel("Choose a window to capture from")
-        title.setObjectName("pickerTitle")
-        layout.addWidget(title)
+        title_label = QLabel(title)
+        title_label.setObjectName("pickerTitle")
+        layout.addWidget(title_label)
         self.search = QLineEdit()
         self.search.setPlaceholderText("Search by window title or app…")
         self.search.setClearButtonEnabled(True)
@@ -104,7 +106,7 @@ class SourcePickerDialog(QDialog):
         cancel = QPushButton("Cancel")
         cancel.clicked.connect(self.reject)
         footer.addWidget(cancel)
-        self.capture_button = QPushButton("Select area")
+        self.capture_button = QPushButton(action_text)
         self.capture_button.setObjectName("primaryButton")
         self.capture_button.clicked.connect(self._accept_current)
         footer.addWidget(self.capture_button)
